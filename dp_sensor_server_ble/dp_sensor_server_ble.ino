@@ -1,43 +1,70 @@
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
+#include <ArduinoBLE.h>
 
-// See the following for generating UUIDs:
-// https://www.uuidgenerator.net/
+//dp service
+BLEService dpSensordp("0001");
+BLEService dpSensorTemp("0002");
 
-#define SERVICE_UUID        "c80008f8-fdb6-49ab-9d48-0445314e9491"
-#define CHARACTERISTIC_UUID "68e9dbd2-d451-48ba-93ed-04713cb0b0dd"
+//dp value characteristic
+BLECharCharacteristic dpValue("74e19ea8-e895-4272-a659-e8388b47b3be",  // standard 16-bit characteristic UUID
+    BLERead | BLENotify);
+//temperature value characteristic
+BLECharCharacteristic tempValue("ab85e8ef-d448-4e42-b520-e122dedeae19",  // standard 16-bit characteristic UUID
+    BLERead | BLENotify);
 
-BLECharacteristic *pCharacteristic;
-uint32_t value = 0;
+//dp value descriptor
+BLEDescriptor dpValueDesc("2901", "dp Value [mbar]");  // CUD UUID
+BLEDescriptor tempValueDesc("2901", "Temperature Value [C]");  // CUD UUID
+
+long previousMillis = 0;
 
 void setup() {
-  Serial.begin(115200);
-  Serial.println("Starting BLE work!");
+  Serial.begin(115200);    // initialize serial communication
 
-  BLEDevice::init("dP_Sensor");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  pCharacteristic = pService->createCharacteristic(
-      CHARACTERISTIC_UUID, 
-      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | 
-      BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_INDICATE);
+  // begin initialization
+  if (!BLE.begin()) {
+    Serial.println("starting BLE failed. Retrying...");
+    while (1);
+  }
 
-  pCharacteristic->setValue("dP sensor broadcast init");
-  pService->start();
-  // BLEAdvertising *pAdvertising = pServer->getAdvertising();  // this still is working for backward compatibility
-  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  pAdvertising->addServiceUUID(SERVICE_UUID);
-  pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
-  pAdvertising->setMinPreferred(0x12);
-  BLEDevice::startAdvertising();
-  Serial.println("Characteristic defined");
+  BLE.setLocalName("dP_Sensor_Z005");
+  BLE.setAdvertisedService(dpSensordp); // service UUID
+  BLE.setAdvertisedService(dpSensorTemp); // service UUID
+  dpSensordp.addCharacteristic(dpValue); // characteristic
+  dpSensorTemp.addCharacteristic(tempValue); // add the battery level characteristic  
+  dpValue.addDescriptor(dpValueDesc);
+  tempValue.addDescriptor(tempValueDesc);
+  BLE.addService(dpSensordp); // Add the service
+  BLE.addService(dpSensorTemp); // Add the service
+
+  // start advertising
+  BLE.advertise();
+
+  Serial.println("Bluetooth® device active, waiting for connections...");
 }
 
 void loop() {
-  pCharacteristic->setValue((uint8_t *)&value, sizeof(value));
-  pCharacteristic->notify();
-  value++;
-  delay(5000);
+  int8_t dp = 99, temp = -30;
+  // wait for a Bluetooth® Low Energy central
+  BLEDevice central = BLE.central();
+
+  // if a central is connected to the peripheral:
+  if (central) {
+    Serial.print("Connected to central: ");
+    // print the central's BT address:
+    Serial.println(central.address());
+
+    // check the battery level every 200ms
+    // while the central is connected:
+    while (central.connected()) {
+      long currentMillis = millis();
+      if (currentMillis - previousMillis >= 2000) {
+        previousMillis = currentMillis;
+        dpValue.writeValue((uint8_t) dp); 
+        tempValue.writeValue((uint8_t) temp); 
+        Serial.println("Updating value...");
+      }
+    }
+    Serial.print("Disconnected from central: ");
+    Serial.println(central.address());
+  }
 }
