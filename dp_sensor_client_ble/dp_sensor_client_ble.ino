@@ -1,4 +1,6 @@
 #include <ArduinoBLE.h>
+#include <SPI.h>
+#include <SD.h>
 
 BLECharCharacteristic dpValue("74e19ea8-e895-4272-a659-e8388b47b3be",  // standard 16-bit characteristic UUID
     BLERead | BLENotify);
@@ -9,6 +11,24 @@ BLECharCharacteristic tempValue("ab85e8ef-d448-4e42-b520-e122dedeae19",  // stan
 long previousMillis = 0;
 const char* dpServiceId = "0001";
 const char* tempServiceId = "0002";
+const long interval = 5000000;  //Logging time interval
+unsigned long startTime = 0;
+
+// Pin definitions
+#define SCK_PIN 4
+#define MISO_PIN 5
+#define MOSI_PIN 6
+#define SS_PIN 7
+
+void writeToSD(unsigned long time, int8_t dP, int8_t T1){ 
+  File file = SD.open("/dp_log_z005_base.txt", FILE_APPEND);
+  file.print(time);
+  file.print("; ");
+  file.print(dP);
+  file.print("; ");
+  file.println(T1);
+  file.close();
+}
 
 void printData(const unsigned char data[], int length) {
   for (int i = 0; i < length; i++) {
@@ -80,9 +100,18 @@ int8_t readValue(BLEDevice peripheral, int serviceId, BLECharacteristic targetCh
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial);
+  SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);
+  
+  // Initialize SD card
+  if (!SD.begin(SS_PIN)) {
+    Serial.println("Card Mount Failed");
+  }
+  uint8_t cardType = SD.cardType();
+  if (cardType == CARD_NONE) {
+    Serial.println("No SD card attached");
+  }
 
-  // begin initialization
+  // begin BLE initialization
   if (!BLE.begin()) {
     Serial.println("starting Bluetooth® Low Energy module failed!");
 
@@ -97,6 +126,7 @@ void setup() {
 }
 
 void loop() {
+  unsigned long nowTime = 0;
   // check if a peripheral has been discovered
   BLEDevice peripheral = BLE.available();
   int8_t dp = 0, temp = 0;
@@ -115,13 +145,14 @@ void loop() {
       connectPeripheral(peripheral);
         } 
     while (peripheral.connected()) {
-      long currentMillis = millis();
-      if (currentMillis - previousMillis >= 5000) {
-        previousMillis = currentMillis;
+      nowTime = micros();
+      if (nowTime - startTime >= interval) {
+        startTime = nowTime;
         Serial.println("Reading dp value");
         dp = (int8_t) readValue(peripheral, atoi(dpServiceId), dpValue);
         Serial.println("Reading temp value");
         temp = (int8_t) readValue(peripheral, atoi(tempServiceId), tempValue);
+        writeToSD(millis()/1000, dp, temp);
         Serial.println(dp);
         Serial.println(temp);
       }
@@ -130,5 +161,10 @@ void loop() {
     Serial.println("Scanning for dP_Sensor_Z005...");
     BLE.disconnect();
     BLE.scan();
+  }
+  nowTime = micros();
+  if (nowTime - startTime >= interval) {
+    startTime = nowTime;
+    writeToSD(millis()/1000, 0, 0);
   }
 }
