@@ -18,8 +18,8 @@ unsigned long startTime = 0;
 #define MOSI_PIN 6
 #define SS_PIN 7
 
-#define CONFIG_SDA 8
-#define CONFIG_SCL 9
+#define CONFIG_SDA 0
+#define CONFIG_SCL 1
 
 
 //dp service
@@ -149,9 +149,9 @@ void loop() {
         dpValue.writeValue((uint8_t) dp); 
         tempValue.writeValue((uint8_t) temp); 
         Serial.print("dP [mbar]:");
-        Serial.print((uint8_t) dp);
+        Serial.print((int8_t) dp);
         Serial.print("\t Temp [C]:");
-        Serial.println((uint8_t) temp);
+        Serial.println((int8_t) temp);
       }
     }
     Serial.print("Disconnected from central: ");
