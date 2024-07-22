@@ -146,8 +146,8 @@ void loop() {
         startTime = nowTime;
         readDpSensor(&dp, &temp);
         writeToSD(millis()/1000, dp, temp);
-        dpValue.writeValue((uint8_t) dp); 
-        tempValue.writeValue((uint8_t) temp); 
+        dpValue.writeValue((int8_t) dp); 
+        tempValue.writeValue((int8_t) temp); 
         Serial.print("dP [mbar]:");
         Serial.print((int8_t) dp);
         Serial.print("\t Temp [C]:");

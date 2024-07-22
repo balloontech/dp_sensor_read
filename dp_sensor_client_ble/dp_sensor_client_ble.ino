@@ -86,7 +86,7 @@ int8_t readValue(BLEDevice peripheral, int serviceId, BLECharacteristic targetCh
             // print out the value of the characteristic
             Serial.print(", value 0x");
             printData(characteristic.value(), characteristic.valueLength());
-            uint8_t output = 0;
+            int8_t output = 0;
             characteristic.readValue(output);
             Serial.println();
             return output;
